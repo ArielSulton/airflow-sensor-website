@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Real-Time Sensor Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      padding: 2rem;
+      background-color: #f4f6f9;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .card-metric {
+      text-align: center;
+      padding: 1.2rem;
+      border-left: 6px solid #0d6efd;
+      border-radius: 0.5rem;
+      background-color: #ffffff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+    .card-metric h4 {
+      font-size: 1rem;
+      color: #6c757d;
+    }
+    .card-metric p {
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin: 0;
+    }
+    .status-indicator {
+      position: absolute;
+      top: 1rem;
+      right: 2rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    .spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid #ccc;
+      border-top: 2px solid #0d6efd;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="status-indicator">
+    <span id="connection-status"><span class="spinner"></span> Fetching data...</span>
+  </div>
+
+  <div class="container">
+    <h1 class="text-center mb-5"><i class="fa-solid fa-microchip" style="color: #74C0FC;"></i> Real-Time Sensor Dashboard</h1>
+
+    <div class="row">
+      <!-- Left Side: Chart & Metrics -->
+      <div class="col-lg-9 mb-6">
+        <!-- Metric Cards -->
+        <div class="row mb-4" id="metrics">
+          <div class="col-md-4 mb-3">
+            <div class="card-metric">
+              <h4>Average</h4>
+              <p id="avg-value">-</p>
+            </div>
+          </div>
+          <div class="col-md-4 mb-3">
+            <div class="card-metric">
+              <h4>Maximum</h4>
+              <p id="max-value">-</p>
+            </div>
+          </div>
+          <div class="col-md-4 mb-3">
+            <div class="card-metric">
+              <h4>Minimum</h4>
+              <p id="min-value">-</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card">
+          <div class="card-body">
+            <canvas id="sensorChart" height="100"></canvas>
+            <p class="text-muted text-center mt-2" id="last-updated">Waiting for data...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Side: Table -->
+      <div class="col-lg-3">
+        <div class="card h-100">
+          <div class="card-body d-flex flex-column">
+            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+              <table class="table table-bordered table-striped">
+                <thead class="table-primary">
+                  <tr style="text-align: center;">
+                    <th>ID</th>
+                    <th>Value</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody id="data-table-body" style="text-align: center;">
+                  <tr><td colspan="3">No data yet</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart + Fetch -->
+  <script>
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+
+    const sensorChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Sensor Value',
+          data: [],
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13, 110, 253, 0.1)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+          },
+          legend: {
+            display: true
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Timestamp' }
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: 'Sensor Value' }
+          }
+        }
+      }
+    });
+
+    async function fetchData() {
+      try {
+        const response = await fetch('/data');
+        const json = await response.json();
+
+        const labels = json.map(row => row.timestamp);
+        const values = json.map(row => row.value);
+
+        // Update chart
+        sensorChart.data.labels = labels;
+        sensorChart.data.datasets[0].data = values;
+        sensorChart.update();
+
+        // Update table
+        const tableBody = document.getElementById('data-table-body');
+        tableBody.innerHTML = '';
+        if (json.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="3">No data available</td></tr>';
+        } else {
+          json.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${row.id}</td><td>${row.value}</td><td>${row.timestamp}</td>`;
+            tableBody.appendChild(tr);
+          });
+        }
+
+        // Calculate stats
+        if (values.length > 0) {
+          const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+          const max = Math.max(...values).toFixed(2);
+          const min = Math.min(...values).toFixed(2);
+
+          document.getElementById('avg-value').textContent = avg;
+          document.getElementById('max-value').textContent = max;
+          document.getElementById('min-value').textContent = min;
+        }
+
+        document.getElementById('last-updated').textContent = "Last updated: " + new Date().toLocaleTimeString();
+        document.getElementById('connection-status').innerHTML = '<i class="fa-regular fa-circle-check" style="color: #63E6BE;"></i> Connected';
+      } catch (err) {
+        console.error("Failed to fetch sensor data:", err);
+        document.getElementById('connection-status').innerHTML = '<i class="fa-regular fa-circle-xmark" style="color: #ff3d3d;"></i> Error fetching data';
+      }
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>

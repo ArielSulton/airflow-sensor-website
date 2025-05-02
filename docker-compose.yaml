@@ -1,0 +1,68 @@
+services:
+  airflow:
+    image: apache/airflow:2.10.3
+    container_name: airflow
+    restart: always
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__CORE__DEFAULT_TIMEZONE=Asia/Jakarta
+      - AIRFLOW__SCHEDULER__USE_SECOND_INTERVAL=true
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+    command: bash -c "airflow db migrate && airflow connections create-default-connections && airflow users create \
+        --username admin --password admin \
+        --firstname Airflow --lastname Admin \
+        --role Admin --email admin@example.com && \
+        airflow scheduler & airflow webserver"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./.env:/opt/airflow/dags/.env
+      - ./airflow/dags/requirements.txt:/opt/airflow/dags/requirements.txt
+    ports:
+      - "8080:8080"
+    networks:
+      - airflow-net
+    depends_on:
+      - postgres
+  
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    restart: always
+    env_file: .env
+    volumes:
+      - ./postgres:/docker-entrypoint-initdb.d
+    ports:
+      - "5434:5432"
+    networks:
+      - airflow-net
+
+  flask:
+    build: ./flask_app
+    container_name: flask_app
+    restart: always
+    env_file: .env
+    volumes:
+      - ./flask_app:/app
+      - ./.env:/app/.env
+    ports:
+      - "5000:5000"
+    networks:
+      - airflow-net
+    depends_on:
+      - postgres
+
+  adminer:
+    image: adminer
+    container_name: adminer
+    restart: always
+    ports:
+      - "8088:8080"
+    depends_on:
+      - postgres
+    networks:
+      - airflow-net
+
+networks:
+  airflow-net:
+    driver: bridge
