@@ -106,10 +106,11 @@
                     <th>ID</th>
                     <th>Value</th>
                     <th>Time</th>
+                    <th>Level</th>
                   </tr>
                 </thead>
                 <tbody id="data-table-body" style="text-align: center;">
-                  <tr><td colspan="3">No data yet</td></tr>
+                  <tr><td colspan="4">No data yet</td></tr>
                 </tbody>
               </table>
             </div>
@@ -169,39 +170,54 @@
       try {
         const response = await fetch('/data');
         const json = await response.json();
-
+    
         const labels = json.map(row => row.timestamp);
         const values = json.map(row => row.value);
-
+    
         // Update chart
         sensorChart.data.labels = labels;
         sensorChart.data.datasets[0].data = values;
         sensorChart.update();
-
+    
         // Update table
         const tableBody = document.getElementById('data-table-body');
         tableBody.innerHTML = '';
         if (json.length === 0) {
-          tableBody.innerHTML = '<tr><td colspan="3">No data available</td></tr>';
+          tableBody.innerHTML = '<tr><td colspan="4">No data available</td></tr>';
         } else {
           json.forEach(row => {
+            let badgeClass = '';
+
+            if (row.level === 'Normal') {
+              badgeClass = 'bg-success';
+            } else if (row.level === 'Warning') {
+              badgeClass = 'bg-warning text-dark';
+            } else {
+              badgeClass = 'bg-danger';
+            }            
+
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${row.id}</td><td>${row.value}</td><td>${row.timestamp}</td>`;
+            tr.innerHTML = `
+              <td>${row.id}</td>
+              <td>${row.value}</td>
+              <td>${row.timestamp}</td>
+              <td><span class="badge ${badgeClass}">${row.level}</span></td>
+            `;
             tableBody.appendChild(tr);
           });
         }
-
+    
         // Calculate stats
         if (values.length > 0) {
           const avg = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
           const max = Math.max(...values).toFixed(2);
           const min = Math.min(...values).toFixed(2);
-
+    
           document.getElementById('avg-value').textContent = avg;
           document.getElementById('max-value').textContent = max;
           document.getElementById('min-value').textContent = min;
         }
-
+    
         document.getElementById('last-updated').textContent = "Last updated: " + new Date().toLocaleTimeString();
         document.getElementById('connection-status').innerHTML = '<i class="fa-regular fa-circle-check" style="color: #63E6BE;"></i> Connected';
       } catch (err) {
@@ -209,9 +225,9 @@
         document.getElementById('connection-status').innerHTML = '<i class="fa-regular fa-circle-xmark" style="color: #ff3d3d;"></i> Error fetching data';
       }
     }
-
+    
     fetchData();
-    setInterval(fetchData, 5000);
+    setInterval(fetchData, 5000);    
   </script>
 </body>
 </html>

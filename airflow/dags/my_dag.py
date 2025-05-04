@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path="/opt/airflow/dags/.env")
 
-def insert_loop():
+def insert_loop_with_level():
     conn = psycopg2.connect(
         host=os.getenv("DB_HOST"),
         database=os.getenv("POSTGRES_DB"),
@@ -21,9 +21,23 @@ def insert_loop():
     jakarta = timezone('Asia/Jakarta')
 
     for _ in range(12):
+        # Extract Data
         value = round(random.uniform(10.0, 100.0), 2)
         now = datetime.now(jakarta).strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute("INSERT INTO sensor_data (value, timestamp) VALUES (%s, %s);", (value, now))
+        
+        # Transform Data
+        if value < 40:
+            level = 'Normal'
+        elif 40 <= value < 70:
+            level = 'Warning'
+        else:
+            level = 'Critical'
+
+        # Load Data
+        cur.execute(
+            "INSERT INTO sensor_data (value, timestamp, level) VALUES (%s, %s, %s);",
+            (value, now, level)
+        )
         conn.commit()
         time.sleep(5)
 
@@ -37,17 +51,17 @@ default_args = {
 }
 
 with DAG(
-    dag_id='insert_sensor_data_every_5s',
+    dag_id='sensor_dag',
     default_args=default_args,
     start_date=datetime(2024, 1, 1),
     schedule_interval='*/1 * * * *',
     catchup=False,
-    tags=["sensor", "realtime"]
+    tags=["sensor", "ETL", "real-time"]
 ) as dag:
 
     task_insert_loop = PythonOperator(
-        task_id='insert_sensor_data_looped',
-        python_callable=insert_loop
+        task_id='sensor_dag',
+        python_callable=insert_loop_with_level
     )
 
     task_insert_loop

@@ -15,7 +15,7 @@ def get_sensor_data():
         password=os.getenv("POSTGRES_PASSWORD")
     )
     cur = conn.cursor()
-    cur.execute("SELECT id, value, timestamp FROM sensor_data ORDER BY id DESC LIMIT 20;")
+    cur.execute("SELECT id, value, timestamp, level FROM sensor_data ORDER BY id DESC LIMIT 20;")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -29,7 +29,12 @@ def index():
 def data():
     rows = get_sensor_data()
     return jsonify([
-        {'id': row[0], 'value': row[1], 'timestamp': row[2].strftime('%H:%M:%S')}
+        {
+            'id': row[0],
+            'value': row[1],
+            'timestamp': row[2].strftime('%H:%M:%S'),
+            'level': row[3]
+        }
         for row in rows
     ])
 
